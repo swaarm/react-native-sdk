@@ -155,3 +155,5 @@ class SwaarmClient {
 
   }
 }
+
+export { SwaarmClient };
