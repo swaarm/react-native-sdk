@@ -1,4 +1,5 @@
 import { gzip } from 'pako';
+import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { getUniqueId, getSystemVersion, getUserAgent } from 'react-native-device-info';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,7 +21,7 @@ class SwaarmClient {
   ua: string;
   osv: string;
   headers: Record<string, string>;
-  events: Array<object>;
+  events: Array<object> = [];
   domain: string;
   vendorId: String;
   isCollecting: false;
@@ -47,7 +48,6 @@ class SwaarmClient {
     }
 
     try {
-
       if ((await AsyncStorage.getItem("INSTALLED")) !== null) {
         // already installed
       } else {
@@ -55,10 +55,10 @@ class SwaarmClient {
         await AsyncStorage.setItem("INSTALLED", "yes");
       }
       SwaarmClient.addEvent("__open");
-
     } catch (_) {
       // pass
     }
+
 
 
     console.log(`Starting with vendorId ${SwaarmClient.instance.vendorId}, collecting ${SwaarmClient.instance.isCollecting}`);
@@ -70,22 +70,23 @@ class SwaarmClient {
     return SwaarmClient.instance;
   }
 
-  async sendEvents() {
+  sendEvents() {
     if (!SwaarmClient.instance.active) {
       return;
     }
     try {
       if (SwaarmClient.instance.events.length > 0) {
+
         var batch = SwaarmClient.instance.events.slice(0, SwaarmClient.batchSize);
-        await fetch(`${SwaarmClient.instance.domain}/sdk`, {
+        Promise.resolve(fetch(`https://${SwaarmClient.instance.domain}/sdk`, {
           method: "POST",
           body: gzip(JSON.stringify(
             {
-              'time': Date.prototype.toISOString(),
+              'time': (new Date()).toISOString(),
               'events': batch
             }
           )), headers: SwaarmClient.instance.headers
-        });
+        }));
         SwaarmClient.instance.events = SwaarmClient.instance.events.filter((item) => batch.indexOf(item) == -1);
       }
 
@@ -106,6 +107,7 @@ class SwaarmClient {
     } catch (_) {
       // pass
     }
+    setTimeout(SwaarmClient.instance.sendEvents, 1000 * SwaarmClient.flushFrequency);
   }
 
 
@@ -121,30 +123,27 @@ class SwaarmClient {
   }
 
   static addEvent(typeId?: string | undefined, aggregatedValue: number = 0.0, customValue: string = '', revenue: number = 0.0, currency?: string | undefined, iosReceipt?: string | undefined, androidReceipt?: string | undefined) {
-    SwaarmClient.instance.events.push({
+    var event = {
       'id': uuidv4(),
       'typeId': typeId,
       'aggregatedValue': aggregatedValue,
       'customValue': customValue,
       'revenue': revenue,
       'vendorId': SwaarmClient.instance.vendorId,
-      'clientTime': Date.prototype.toISOString(),
+      'clientTime': (new Date()).toISOString(),
       'osv': SwaarmClient.instance.osv,
       'currency': currency,
       'iosPurchaseValidation': { 'receipt': iosReceipt },
       'androidPurchaseValidation': { 'receipt': androidReceipt },
-    });
+    };
+    SwaarmClient.instance.events.push(event);
   }
 
 
   static start() {
-    if (SwaarmClient.instance.active) {
-      createWorker(async () => {
-        while (SwaarmClient.instance.active) {
-          await SwaarmClient.instance.sendEvents();
-          await new Promise(r => setTimeout(r, SwaarmClient.flushFrequency * 1000));
-        }
-      });
+    if (!SwaarmClient.instance.active) {
+      SwaarmClient.instance.active = true;
+      SwaarmClient.instance.sendEvents();
     }
   }
 
