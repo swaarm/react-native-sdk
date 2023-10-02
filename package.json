@@ -1,6 +1,6 @@
 {
   "name": "@swaarm/swaarm-sdk",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Swaarm SDK for react native",
   "main": "index.tsx",
   "scripts": {
@@ -10,8 +10,8 @@
     "@react-native-async-storage/async-storage": "^1.19.1",
     "pako": "^2.1.0",
     "react-native-device-info": "^10.8.0",
-    "web-worker-helper": "^0.0.3",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "web-worker-helper": "^0.0.3"
   },
   "author": "",
   "license": "ISC",

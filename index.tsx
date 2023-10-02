@@ -1,9 +1,8 @@
 import { gzip } from 'pako';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
-import { getUniqueId, getSystemVersion, getUserAgent } from 'react-native-device-info';
+import { getUniqueId, getSystemVersion, getUserAgent, getSystemName } from 'react-native-device-info';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createWorker } from 'web-worker-helper';
 
 
 export const asyncTimeout = (ms: number) => {
@@ -13,13 +12,13 @@ export const asyncTimeout = (ms: number) => {
 };
 
 
-
 class SwaarmClient {
   private static instance: SwaarmClient;
   private static batchSize: number = 50;
   private static flushFrequency: number = 10;
   ua: string;
   osv: string;
+  systemName: string;
   headers: Record<string, string>;
   events: Array<object> = [];
   domain: string;
@@ -31,11 +30,13 @@ class SwaarmClient {
   private constructor() { }
 
 
-  public static async init(token: string, domain: string): Promise<SwaarmClient> {
+  public static async init(domain: string, token: string): Promise<SwaarmClient> {
+    console.log("init_sdk");
     if (!SwaarmClient.instance) {
       SwaarmClient.instance = new SwaarmClient();
       SwaarmClient.instance.ua = await getUserAgent();
       SwaarmClient.instance.osv = getSystemVersion();
+      SwaarmClient.instance.systemName = getSystemName();
       SwaarmClient.instance.domain = domain;
       SwaarmClient.instance.vendorId = await getUniqueId();
       SwaarmClient.instance.headers = {
@@ -55,8 +56,8 @@ class SwaarmClient {
         await AsyncStorage.setItem("INSTALLED", "yes");
       }
       SwaarmClient.addEvent("__open");
-    } catch (_) {
-      // pass
+    } catch (e: any) {
+      console.log(e.Message);
     }
 
 
@@ -104,8 +105,8 @@ class SwaarmClient {
       //     }
       //   }
       // }
-    } catch (_) {
-      // pass
+    } catch (e: any) {
+      console.log(e.Message);
     }
     setTimeout(SwaarmClient.instance.sendEvents, 1000 * SwaarmClient.flushFrequency);
   }
@@ -122,7 +123,28 @@ class SwaarmClient {
     return result;
   }
 
-  static addEvent(typeId?: string | undefined, aggregatedValue: number = 0.0, customValue: string = '', revenue: number = 0.0, currency?: string | undefined, iosReceipt?: string | undefined, androidReceipt?: string | undefined) {
+
+
+  static purchase(typeId?: string | undefined, revenue: number = 0.0, currency?: string | undefined, receiptOrToken?: string | undefined, androidPurchaseId?: string | undefined) {
+    SwaarmClient.addEvent(typeId, 0, '', revenue, currency, receiptOrToken, androidPurchaseId);
+  }
+  static event(typeId?: string | undefined, aggregatedValue: number = 0.0, customValue: string = '') {
+    SwaarmClient.addEvent(typeId, aggregatedValue, customValue);
+  }
+
+
+  static addEvent(typeId?: string | undefined, aggregatedValue: number = 0.0, customValue: string = '', revenue: number = 0.0, currency?: string | undefined, receiptOrToken?: string | undefined, androidPurchaseId?: string | undefined) {
+    var iosReceipt: Record<string, string> = {};
+    var androidReceipt: Record<string, string> = {};
+    if (receiptOrToken) {
+      if (SwaarmClient.instance.systemName === 'iOS') {
+        iosReceipt = { 'receipt': (receiptOrToken ?? "") };
+      } else if (SwaarmClient.instance.systemName === 'Android') {
+        androidReceipt = { 'token': (receiptOrToken ?? ""), 'subscriptionId': (androidPurchaseId ?? "") };
+      }
+    }
+
+
     var event = {
       'id': uuidv4(),
       'typeId': typeId,
@@ -133,8 +155,8 @@ class SwaarmClient {
       'clientTime': (new Date()).toISOString(),
       'osv': SwaarmClient.instance.osv,
       'currency': currency,
-      'iosPurchaseValidation': { 'receipt': iosReceipt },
-      'androidPurchaseValidation': { 'receipt': androidReceipt },
+      'iosPurchaseValidation': iosReceipt,
+      'androidPurchaseValidation': androidReceipt,
     };
     SwaarmClient.instance.events.push(event);
   }
