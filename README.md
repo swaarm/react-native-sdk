@@ -24,7 +24,7 @@ In your App.tsx, init the swaarm client singleton with the factory method `await
 
 
 ```
-  Promise.resolve(SwaarmClient.init("track.hector.swaarm-app.com", "<token>")).then(() => {
+  Promise.resolve(SwaarmClient.init("<domain>", "<token>")).then(() => {
     SwaarmClient.event("lala", 4.9, "blub");
     SwaarmClient.purchase("purchase_it", 5.9, "USD", "transaction ID, receipt or token", "android purchase or subscription id");
 
