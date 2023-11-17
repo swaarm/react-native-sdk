@@ -5,7 +5,7 @@
 update your package.json with the following `dependencies`:
 
 ```
-    "@swaarm/swaarm-sdk": "^1.0.2",
+    "@swaarm/swaarm-sdk": "^1.0.4",
     "@react-native-async-storage/async-storage": "^1.19.1",
     "react-native-device-info": "^10.8.0",
     "react-native-get-random-values": "^1.9.0"
