@@ -1,6 +1,5 @@
 import { gzip } from 'pako';
-import 'react-native-get-random-values';
-import { v4 as uuidv4 } from 'uuid';
+import uuid from 'react-native-uuid';
 import { getUniqueId, getSystemVersion, getUserAgent, getSystemName } from 'react-native-device-info';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -146,7 +145,7 @@ class SwaarmClient {
 
 
     var event = {
-      'id': uuidv4(),
+      'id': uuid.v4(),
       'typeId': typeId,
       'aggregatedValue': aggregatedValue,
       'customValue': customValue,
