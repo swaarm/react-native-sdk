@@ -1,8 +1,8 @@
 {
   "name": "@swaarm/swaarm-sdk",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Swaarm SDK for react native",
-  "main": "index.tsx",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
