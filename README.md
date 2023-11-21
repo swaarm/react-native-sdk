@@ -1,47 +1,108 @@
-# Swaarm SDK for react-native
+# Swaarm SDK for React Native
+
+The Swaarm SDK for React Native allows for better measurement and tracking of user journeys and activities in
+apps that use the React Native framework
 
 ## Installation
 
-update your package.json with the following `dependencies`:
+To install the SDK you need to add the following dependencies to your package.json file:
 
 ```
-    "@swaarm/swaarm-sdk": "^1.0.5",
+    "@swaarm/swaarm-sdk": "^1.0.6",
     "@react-native-async-storage/async-storage": "^1.19.6",
     "react-native-device-info": "^10.11.0",
-
-
 ```
 
-then run 
+If you are already using the react-native-async-storage or react-native-device-info libraries in your project, feel free
+to skip them and use your existing versions.
+
+To install the dependencies run: 
+
+```bash
+    npm install
 ```
-    npm install --save
+
+### Installation for iOS
+
+If you are targeting iOS as a platform make sure to also run:
+```bash
     npx pod-install
-
 ```
 
-In your App.tsx, init the swaarm client singleton with the factory method `await SwaarmClient.init("<domain>", "<token>");` inside your main method. alternatively use a promise.
+### Installation for Android
 
+If you are targeting Android as a platform, make sure to add the following permissions in your `AndroidManifest.xml` file:
 
-```
-  Promise.resolve(SwaarmClient.init("<domain>", "<token>")).then(() => {
-    SwaarmClient.event("lala", 4.9, "blub");
-    SwaarmClient.purchase("purchase_it", 5.9, "USD", "transaction ID, receipt or token", "android purchase or subscription id");
-
-  });
-
+```xml
+    <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-
-The SDK determines if an app was installed before by checking and setting a keychain flag on first start. if it's indeed a reinstall, the `__reinstall` event is sent in lieu of the initial one.
-
-sent events will automatically be enriched with some userdata, e.g. os_version, vendorId and - if available - idfa.
-On devices using ios14 and up, tracking needs to be specifically requested to be able to get a non-zero idfa. To enable the idfa,
-tracking needs to be requested from a visible app, as per https://stackoverflow.com/a/72287836/1768607
-
-
-event and purchase methods can be called as follows:
+In your app's build.gradle file you will need to add:
 
 ```
-    SwaarmClient.event("type_id", 4.9, "custom_value");
-    SwaarmClient.purchase("type_id", 5.9, "USD", "transaction ID, receipt or token", "android purchase or subscription id");
+compile 'com.android.installreferrer:installreferrer:2.2'
+
+...
+
+allprojects {
+    repositories {
+        maven {
+            url "https://maven.google.com"
+        }
+    }
+}
 ```
+
+#### Proguard settings
+
+If you are using Proguard, add these lines to your Proguard file:
+
+```
+-keep public class com.android.installreferrer.** { *; }
+```
+
+## Configuration
+
+In your App.js (or App.tsx), init the Swaarm SDK client using your tracking domain together with your app token as early as possible:
+
+```javascript
+    SwaarmClient.init("track.mycompany.swaarm-app.com", "abc123");
+```
+
+To enable Swaarm SDK logging you can pass a third parameter:
+
+```javascript
+    SwaarmClient.init("track.mycompany.swaarm-app.com", "abc123", true);
+```
+
+or call the log method at any point in the execution of the app:
+
+```javascript
+    SwaarmClient.log(true)
+```
+
+## Recording events
+
+To record any event you can use the general `SwaarmClient.event` method which takes 3 parameters:
+
+ * Event Type Id - the name of the event that you wanted to track as defined in Swaarm's Events under the "Advertiser Event Type Id" field. This can be "registration" or "first_time_deposit" etc.
+ * Aggregated value - this is a numeric value that Swaarm will hold for you and can aggregate in the reports. Could be the amount of coins the user purchased, how many tasks they completed etc.
+ * Custom value - this is a free field that can be used to store any additional information about the event. For a registration you might want to put the user's id or the email. For a payment you might want to store the package that the user selected. You can even send JSON and then analyse it using our SQL Lab.
+
+Example:
+
+```javascript
+    SwaarmClient.event('earned_coins', 120, '{"plan": "premium"}');
+```
+
+To register a purchase event you can use the more specialized `SwaarmClient.purchase` call
+
+```javascript
+    SwaarmClient.purchase("registration", 12.42, "USD",  "iOS purchase or subscription receipt", "android purchase or subscription id")
+```
+
+By default, the method requires a monetary value and a currency. To enable the validation of 
+purchases made using App/Play Store functionality you can pass the receipt or purchase id.
+
+The SDK will automatically record app installations, open events or reinstalls, there is no need to
+fire such events

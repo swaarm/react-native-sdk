@@ -215,7 +215,10 @@ class SwaarmClient {
       osv: SwaarmClient.instance.osv,
       currency: currency,
       iosPurchaseValidation: iosReceipt,
-      androidPurchaseValidation: androidReceipt
+      androidPurchaseValidation: androidReceipt,
+      installReferrer: {
+        referrer: SwaarmClient.instance.referrer
+      }
     };
     SwaarmClient.instance.events.push(event)
   }
