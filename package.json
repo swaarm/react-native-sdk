@@ -1,6 +1,6 @@
 {
   "name": "@swaarm/swaarm-sdk",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Swaarm SDK for react native",
   "main": "index.js",
   "scripts": {

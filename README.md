@@ -63,19 +63,26 @@ If you are using Proguard, add these lines to your Proguard file:
 
 ## Configuration
 
+Importing SwaarmSDK:
+
+```javascript
+    import {SwaarmClient} from "@swaarm/swaarm-sdk";
+```
+
 In your App.js (or App.tsx), init the Swaarm SDK client using your tracking domain together with your app token as early as possible:
+Last parameter is the log parameter, when set to true, the SDK will log all its actions in the console.
 
 ```javascript
-    SwaarmClient.init("track.mycompany.swaarm-app.com", "abc123");
+    SwaarmClient.init("track.mycompany.swaarm-app.com", "androidToken", "iosToken", true);
 ```
 
-To enable Swaarm SDK logging you can pass a third parameter:
+If you use the same token both on iOS and Android you can use:
 
 ```javascript
-    SwaarmClient.init("track.mycompany.swaarm-app.com", "abc123", true);
+    SwaarmClient.initMultiPlatform("track.mycompany.swaarm-app.com", "abc123", true);
 ```
 
-or call the log method at any point in the execution of the app:
+If you would like to enable debug mode dynamically call the log method at any point in the execution of the app:
 
 ```javascript
     SwaarmClient.log(true)

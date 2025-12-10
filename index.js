@@ -95,33 +95,33 @@ class SwaarmClient {
             if (userId == null) {
                 userId = uuid.v4()
                 await AsyncStorage.setItem("__SWAARM_USER_ID", userId)
-                if(SwaarmClient.debug){
+                if (SwaarmClient.debug) {
                     console.log(`SwaarmSDK >> SwaarmClient initialized for user ${userId}`)
                 }
             }
             SwaarmClient.instance.vendorId = userId;
             if ((await AsyncStorage.getItem("__SWAARM_INSTALLED")) !== null) {
                 // already installed
-                if(SwaarmClient.debug){
+                if (SwaarmClient.debug) {
                     console.log(`SwaarmSDK >> The app has previously been installed`)
                 }
             } else {
                 SwaarmClient.addEvent()
                 await AsyncStorage.setItem("__SWAARM_INSTALLED", "true")
-                if(SwaarmClient.debug){
+                if (SwaarmClient.debug) {
                     console.log(`SwaarmSDK >> This is the first install for ${userId}`)
                 }
             }
             SwaarmClient.addEvent("__open")
         } catch (e) {
             if (SwaarmClient.debug) {
-                console.warn(`Error while initializing Swaarm SDK`, e)
+                console.warn(`SwaarmSDK >> Error while initializing Swaarm SDK`, e)
             }
         }
 
         if (SwaarmClient.debug) {
             console.log(
-                `Swaarm SDK initialized with vendorId ${SwaarmClient.instance.vendorId}, collecting ${SwaarmClient.instance.isCollecting}`
+                `SwaarmSDK >> Swaarm SDK initialized with vendorId ${SwaarmClient.instance.vendorId}, collecting ${SwaarmClient.instance.isCollecting}`
             )
         }
         if (SwaarmClient.flushFrequency > 0) {
@@ -150,7 +150,7 @@ class SwaarmClient {
                     0,
                     SwaarmClient.batchSize
                 );
-                var url = SwaarmClient.instance.domain.startsWith("http") ? SwaarmClient.instance.domain : +"https://" + SwaarmClient.instance.domain
+                var url = SwaarmClient.instance.domain.startsWith("http") ? SwaarmClient.instance.domain : "http://" + SwaarmClient.instance.domain
                 if (url.endsWith("/")) {
                     url = url.substring(0, url.length - 1)
                 }
@@ -233,6 +233,9 @@ class SwaarmClient {
                 referrer: SwaarmClient.instance.referrer
             }
         };
+        if (SwaarmClient.debug) {
+            console.log(`SwaarmSDK >> Sending event`, event)
+        }
         SwaarmClient.instance.events.push(event)
     }
 
