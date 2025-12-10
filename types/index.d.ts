@@ -7,7 +7,7 @@ export class SwaarmClient {
      * @param receiptOrToken - if payment is done through Apple, the receipts can be attached for validation
      * @param androidPurchaseId - if payment is done through PlayServices, the purchase id can be attached for validation
      */
-    static purchase(typeId: any, revenue: number, currency: any, receiptOrToken: any, androidPurchaseId: any): void;
+    static purchase(typeId: string, revenue: number, currency: any, receiptOrToken: any, androidPurchaseId: any): void;
     /**
      * Registers an event in Swaarm
      * @param typeId - the mapping id of the event, can be found under App (edit) > Events
@@ -15,7 +15,7 @@ export class SwaarmClient {
      * @param customValue - any data that should be recorded together with the event, JSON serialization is preferred
      * (e.g. '{"customerType": "premium", "enabledFeatures": ["A", "B", "C"]}')
      */
-    static event(typeId: any, aggregatedValue?: number, customValue?: string): void;
+    static event(typeId: string, aggregatedValue?: number, customValue?: string): void;
     /**
      * Constructs a new Swaarm client for a multi-platform app that can be used to register events.
      * @param domain - your tracking domain, find it in the Swaarm Settings > Domains tab
@@ -23,7 +23,7 @@ export class SwaarmClient {
      * @param enableLogs - flag that enables the logging of the SDK actions
      * @returns {Promise<SwaarmClient>} the instance for the Swaarm client
      */
-    static initMultiPlatform(domain: any, token: any, enableLogs: any): Promise<SwaarmClient>;
+    static initMultiPlatform(domain: string, token: string, enableLogs: boolean): Promise<SwaarmClient>;
     /**
      * Constructs a new Swaarm client for a multi-platform app that can be used to register events.
      * @param domain - your tracking domain, find it in the Swaarm Settings > Domains tab
