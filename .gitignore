@@ -1,4 +1,5 @@
 node_modules
 .expo
 example/AwesomeProject/node_modules
+example/AwesomeProject/Swaarm
 .idea

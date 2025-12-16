@@ -30,9 +30,10 @@ export class SwaarmClient {
      * @param iosToken - the token associated with your iOS store app
      * @param androidToken - the token associated with your android store app
      * @param enableLogs - flag that enables the logging of the SDK actions
+     * @param attributionCallback - a method to be called once the attribution data is available
      * @returns {Promise<SwaarmClient>} the instance for the Swaarm client
      */
-    static init(domain: any, iosToken: any, androidToken: any, enableLogs: any): Promise<SwaarmClient>;
+    static init(domain: string, iosToken?: string, androidToken?: string, enableLogs?: boolean, attributionCallback?: Function): Promise<SwaarmClient>;
     static batchSize: number;
     static flushFrequency: number;
     static debug: boolean;

@@ -113,3 +113,92 @@ purchases made using App/Play Store functionality you can pass the receipt or pu
 
 The SDK will automatically record app installations, open events or reinstalls, there is no need to
 fire such events
+
+## Attribution data
+
+The Swaarm SDK periodically contacts the server to retrieve attribution data until valid data is
+received. 
+
+You can register a callback function which is invoked when successful attribution happens,
+as in the example below:
+
+```javascript
+SwaarmClient.initMultiPlatform("example.com", "token", true, (data) => {
+    if (data.decision == "PASSED") {
+        console.log("Attributed to ", data)
+    }
+})
+```
+
+The schema of the `AttributionData` class is described below.
+
+### UML Diagram
+
+```plaintext
++-----------------------------------------------------+
+|   AttributionData                                   |
++-----------------------------------------------------+
+| - offer: AttributionOffer?                          |
+| - publisher: AttributionPublisher?                  |
+| - ids: Ids?                                         |
+| - decision: PostbackDecision?                       |
+| - googleInstallReferrer: GoogleInstallReferrerData? |
++-----------------------------------------------------+
+        |
+        |
+        |------------------> +-------------------------+
+                             |   AttributionOffer      |
+                             +-------------------------+
+                             | - id: String?           |
+                             | - name: String?         |
+                             | - lpId: String?         |
+                             | - campaignId: String?   |
+                             | - campaignName: String? |
+                             | - adGroupId: String?    |
+                             | - adGroupName: String?  |
+                             | - adId: String?         |
+                             | - adName: String?       |
+                             +-------------------------+
+
+        |------------------> +-----------------------+
+                             |  AttributionPublisher |
+                             +-----------------------+
+                             | - id: String?         |
+                             | - name: String?       |
+                             | - subId: String?      |
+                             | - subSubId: String?   |
+                             | - site: String?       |
+                             | - placement: String?  |
+                             | - creative: String?   |
+                             | - app: String?        |
+                             | - appId: String?      |
+                             | - unique1: String?    |
+                             | - unique2: String?    |
+                             | - unique3: String?    |
+                             | - groupId: String?    |
+                             +-----------------------+
+
+        |------------------> +----------------------+
+                             |       Ids            |
+                             +----------------------+
+                             | - installId: String? |
+                             | - clickId: String?   |
+                             | - userId: String?    |
+                             +----------------------+
+
+        |------------------> +-----------------------+
+                             |   PostbackDecision    |
+                             +-----------------------+
+                             | - passed              |
+                             | - failed              |
+                             +-----------------------+
+
+        |------------------> +----------------------------------+
+                             | GoogleInstallReferrerData        |
+                             +----------------------------------+
+                             | - gclid: String?                 |
+                             | - gbraid: String?                |
+                             | - gadSource: String?             |
+                             | - wbraid: String?                |
+                             +----------------------------------+
+```

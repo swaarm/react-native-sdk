@@ -26,7 +26,7 @@ class SwaarmClient {
         androidPurchaseId
     ) {
         if (SwaarmClient.debug) {
-            console.log(`Firing purchase event "${typeId}" with revenue=${revenue} and currency=${currency}`)
+            console.log(`SwaarmSDK >> Firing purchase event "${typeId}" with revenue=${revenue} and currency=${currency}`)
         }
         SwaarmClient.addEvent(
             typeId,
@@ -48,9 +48,17 @@ class SwaarmClient {
      */
     static event(typeId, aggregatedValue = 0.0, customValue = "") {
         if (SwaarmClient.debug) {
-            console.log(`Firing event "${typeId}" with aggregatedValue=${aggregatedValue} and customValue=${customValue}`)
+            console.log(`SwaarmSDK >> Firing event "${typeId}" with aggregatedValue=${aggregatedValue} and customValue=${customValue}`)
         }
         SwaarmClient.addEvent(typeId, aggregatedValue, customValue)
+    }
+
+    /**
+     * Returns the attribution data for the current user
+     * @param callback - a method to be called once the attribution data is available
+     */
+    static onAttribution(callback) {
+        SwaarmClient.instance.onAttributionCallback = callback
     }
 
     /**
@@ -58,9 +66,10 @@ class SwaarmClient {
      * @param domain - your tracking domain, find it in the Swaarm Settings > Domains tab
      * @param token - the token associated with your store app
      * @param enableLogs - flag that enables the logging of the SDK actions
+     * @param attributionCallback - a method to be called once the attribution data is available
      * @returns {Promise<SwaarmClient>} the instance for the Swaarm client
      */
-    static async initMultiPlatform(domain, token, enableLogs) {
+    static async initMultiPlatform(domain, token, enableLogs, attributionCallback) {
         await SwaarmClient.init(domain, token, token, enableLogs)
     }
 
@@ -70,9 +79,10 @@ class SwaarmClient {
      * @param iosToken - the token associated with your iOS store app
      * @param androidToken - the token associated with your android store app
      * @param enableLogs - flag that enables the logging of the SDK actions
+     * @param attributionCallback - a method to be called once the attribution data is available
      * @returns {Promise<SwaarmClient>} the instance for the Swaarm client
      */
-    static async init(domain, iosToken, androidToken, enableLogs) {
+    static async init(domain, iosToken, androidToken, enableLogs, attributionCallback) {
         if (!SwaarmClient.instance) {
             SwaarmClient.instance = new SwaarmClient()
             SwaarmClient.instance.ua = await getUserAgent()
@@ -81,6 +91,8 @@ class SwaarmClient {
             SwaarmClient.instance.domain = domain
             SwaarmClient.instance.referrer = await getInstallReferrer()
             SwaarmClient.instance.debug = enableLogs
+            SwaarmClient.instance.onAttributionCallback = null;
+            SwaarmClient.instance.shouldRunAttributionCallback = true;
             let token = SwaarmClient.instance.systemName.toLowerCase() === "android" ? androidToken : iosToken
             SwaarmClient.instance.headers = {
                 "user-agent": SwaarmClient.instance.ua,
@@ -140,6 +152,42 @@ class SwaarmClient {
     constructor() {
     }
 
+    getSwaarmUrl() {
+        const protocol = SwaarmClient.instance.domain.startsWith("localhost") ? "http://" : "https://"
+        var url = SwaarmClient.instance.domain.startsWith("http") ? SwaarmClient.instance.domain : protocol + SwaarmClient.instance.domain
+        if (url.endsWith("/")) {
+            url = url.substring(0, url.length - 1)
+        }
+        return url
+    }
+
+    processAttributionData(response) {
+        if (response == null) {
+            return;
+        }
+        if (SwaarmClient.instance.debug) {
+            console.log("SwaarmSDK >> Attribution data result ", response)
+        }
+        if (response.decision != null) {
+            clearInterval(SwaarmClient.instance.attributionInterval);
+        }
+        if (SwaarmClient.instance.onAttributionCallback != null) {
+            SwaarmClient.instance.onAttributionCallback(response)
+        }
+    }
+
+    async fetchAttributionData() {
+        if (!SwaarmClient.instance.active) {
+            return;
+        }
+        var url = this.getSwaarmUrl();
+        var res = await fetch(`${url}/attribution-data?vendorId=${SwaarmClient.instance.vendorId}`, {
+            method: "GET",
+            headers: SwaarmClient.instance.headers
+        })
+        this.processAttributionData(await res.json())
+    }
+
     sendEvents() {
         if (!SwaarmClient.instance.active) {
             return
@@ -150,10 +198,7 @@ class SwaarmClient {
                     0,
                     SwaarmClient.batchSize
                 );
-                var url = SwaarmClient.instance.domain.startsWith("http") ? SwaarmClient.instance.domain : "http://" + SwaarmClient.instance.domain
-                if (url.endsWith("/")) {
-                    url = url.substring(0, url.length - 1)
-                }
+                var url = this.getSwaarmUrl();
                 Promise.resolve(
                     fetch(`${url}/sdk`, {
                         method: "POST",
@@ -243,6 +288,15 @@ class SwaarmClient {
         if (!SwaarmClient.instance.active) {
             SwaarmClient.instance.active = true
             SwaarmClient.instance.sendEvents()
+            SwaarmClient.instance.attributionInterval = setInterval(() => {
+                try {
+                    SwaarmClient.instance.fetchAttributionData();
+                } catch (e) {
+                    if (SwaarmClient.debug) {
+                        console.warn(`Error while receiving attribution data`, e)
+                    }
+                }
+            }, 1000)
         }
     }
 

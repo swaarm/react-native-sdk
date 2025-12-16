@@ -5,7 +5,11 @@ import {useEffect} from "react";
 
 export default function App() {
     useEffect(() => {
-        SwaarmClient.initMultiPlatform("localhost:16100", "47j2wenqh5of5+dgynjbajr6k71rc8fkieaoy7wrw4", true)
+        SwaarmClient.initMultiPlatform("localhost:16100", "47j2wenqh5of5+dgynjbajr6k71rc8fkieaoy7wrw4", true, (data)=>{
+            if(data.decision == "PASSED"){
+                console.log("Attributed to ", data)
+            }
+        })
     }, []);
 
     return (
