@@ -93,6 +93,7 @@ class SwaarmClient {
             SwaarmClient.instance.debug = enableLogs
             SwaarmClient.instance.onAttributionCallback = null;
             SwaarmClient.instance.shouldRunAttributionCallback = true;
+            SwaarmClient.instance.attributionDataFetched = this.isAttributionDataDone()
             let token = SwaarmClient.instance.systemName.toLowerCase() === "android" ? androidToken : iosToken
             SwaarmClient.instance.headers = {
                 "user-agent": SwaarmClient.instance.ua,
@@ -137,7 +138,7 @@ class SwaarmClient {
             )
         }
         if (SwaarmClient.flushFrequency > 0) {
-            SwaarmClient.start()
+            await SwaarmClient.start()
         }
 
         return SwaarmClient.instance
@@ -152,6 +153,14 @@ class SwaarmClient {
     constructor() {
     }
 
+    static async attributionDataIsDone() {
+        await AsyncStorage.setItem("__SWAARM_USER_ATTRIBUTION_DATA_FETCHED", "true")
+    }
+
+    static async isAttributionDataDone() {
+        return (await AsyncStorage.getItem("__SWAARM_USER_ATTRIBUTION_DATA_FETCHED")) === "true"
+    }
+
     getSwaarmUrl() {
         const protocol = SwaarmClient.instance.domain.startsWith("localhost") ? "http://" : "https://"
         var url = SwaarmClient.instance.domain.startsWith("http") ? SwaarmClient.instance.domain : protocol + SwaarmClient.instance.domain
@@ -161,7 +170,7 @@ class SwaarmClient {
         return url
     }
 
-    processAttributionData(response) {
+    async processAttributionData(response) {
         if (response == null) {
             return;
         }
@@ -170,6 +179,7 @@ class SwaarmClient {
         }
         if (response.decision != null) {
             clearInterval(SwaarmClient.instance.attributionInterval);
+            await SwaarmClient.attributionDataIsDone()
         }
         if (SwaarmClient.instance.onAttributionCallback != null) {
             SwaarmClient.instance.onAttributionCallback(response)
@@ -180,12 +190,21 @@ class SwaarmClient {
         if (!SwaarmClient.instance.active) {
             return;
         }
+        var currentTime = Math.floor(Date.now() / 1000);
+        if (currentTime - SwaarmClient.instance.initStartTime > 600) {
+            await SwaarmClient.attributionDataIsDone()
+            clearInterval(SwaarmClient.instance.attributionInterval);
+        }
         var url = this.getSwaarmUrl();
         var res = await fetch(`${url}/attribution-data?vendorId=${SwaarmClient.instance.vendorId}`, {
             method: "GET",
             headers: SwaarmClient.instance.headers
         })
-        this.processAttributionData(await res.json())
+        const status = await res.status
+        if (status === 200) {
+            const json = await res.json()
+            this.processAttributionData(json)
+        }
     }
 
     sendEvents() {
@@ -284,19 +303,23 @@ class SwaarmClient {
         SwaarmClient.instance.events.push(event)
     }
 
-    static start() {
+    static async start() {
         if (!SwaarmClient.instance.active) {
             SwaarmClient.instance.active = true
             SwaarmClient.instance.sendEvents()
-            SwaarmClient.instance.attributionInterval = setInterval(() => {
-                try {
-                    SwaarmClient.instance.fetchAttributionData();
-                } catch (e) {
-                    if (SwaarmClient.debug) {
-                        console.warn(`Error while receiving attribution data`, e)
+            SwaarmClient.instance.initStartTime = Math.floor(Date.now() / 1000)
+
+            if (!await this.isAttributionDataDone()) {
+                SwaarmClient.instance.attributionInterval = setInterval(() => {
+                    try {
+                        SwaarmClient.instance.fetchAttributionData();
+                    } catch (e) {
+                        if (SwaarmClient.debug) {
+                            console.warn(`Error while receiving attribution data`, e)
+                        }
                     }
-                }
-            }, 1000)
+                }, 1000)
+            }
         }
     }
 
