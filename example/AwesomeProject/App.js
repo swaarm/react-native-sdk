@@ -5,7 +5,7 @@ import {useEffect} from "react";
 
 export default function App() {
     useEffect(() => {
-        SwaarmClient.initMultiPlatform("track.hector.swaarm-app.com", "a1234b", true, (data)=>{
+        SwaarmClient.initMultiPlatform("track.yogarise.swaarm-app.com", "8126cd3c-3437-4f18-ade0-fc7eee9b4240", true, (data)=>{
             if(data.decision == "PASSED"){
                 console.log("Attributed to ", data)
             }

@@ -70,7 +70,7 @@ class SwaarmClient {
      * @returns {Promise<SwaarmClient>} the instance for the Swaarm client
      */
     static async initMultiPlatform(domain, token, enableLogs, attributionCallback) {
-        await SwaarmClient.init(domain, token, token, enableLogs)
+        await SwaarmClient.init(domain, token, token, enableLogs, attributionCallback)
     }
 
     /**
@@ -86,12 +86,13 @@ class SwaarmClient {
         if (!SwaarmClient.instance) {
             SwaarmClient.instance = new SwaarmClient()
             SwaarmClient.instance.ua = await getUserAgent()
+            console.log(SwaarmClient.instance.ua)
             SwaarmClient.instance.osv = getSystemVersion()
             SwaarmClient.instance.systemName = getSystemName()
             SwaarmClient.instance.domain = domain
             SwaarmClient.instance.referrer = await getInstallReferrer()
             SwaarmClient.instance.debug = enableLogs
-            SwaarmClient.instance.onAttributionCallback = null;
+            SwaarmClient.instance.onAttributionCallback = attributionCallback;
             SwaarmClient.instance.shouldRunAttributionCallback = true;
             SwaarmClient.instance.attributionDataFetched = this.isAttributionDataDone()
             let token = SwaarmClient.instance.systemName.toLowerCase() === "android" ? androidToken : iosToken
@@ -195,7 +196,11 @@ class SwaarmClient {
             await SwaarmClient.attributionDataIsDone()
             clearInterval(SwaarmClient.instance.attributionInterval);
         }
-        var url = this.getSwaarmUrl();
+        const protocol = SwaarmClient.instance.domain.startsWith("localhost") ? "http://" : "https://"
+        var url = SwaarmClient.instance.domain.startsWith("http") ? SwaarmClient.instance.domain : protocol + SwaarmClient.instance.domain
+        if (url.endsWith("/")) {
+            url = url.substring(0, url.length - 1)
+        }
         var res = await fetch(`${url}/attribution-data?vendorId=${SwaarmClient.instance.vendorId}`, {
             method: "GET",
             headers: SwaarmClient.instance.headers
@@ -217,7 +222,11 @@ class SwaarmClient {
                     0,
                     SwaarmClient.batchSize
                 );
-                var url = this.getSwaarmUrl();
+                const protocol = SwaarmClient.instance.domain.startsWith("localhost") ? "http://" : "https://"
+                var url = SwaarmClient.instance.domain.startsWith("http") ? SwaarmClient.instance.domain : protocol + SwaarmClient.instance.domain
+                if (url.endsWith("/")) {
+                    url = url.substring(0, url.length - 1)
+                }
                 Promise.resolve(
                     fetch(`${url}/sdk`, {
                         method: "POST",
@@ -289,7 +298,7 @@ class SwaarmClient {
             revenue: revenue,
             vendorId: SwaarmClient.instance.vendorId,
             clientTime: new Date().toISOString(),
-            osv: SwaarmClient.instance.osv,
+            osv: null,
             currency: currency,
             iosPurchaseValidation: iosReceipt,
             androidPurchaseValidation: androidReceipt,
