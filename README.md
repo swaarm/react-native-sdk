@@ -8,7 +8,7 @@ activities in apps that use the React Native framework.
 Add the SDK and its peer dependencies to your `package.json`:
 
 ```
-"@swaarm/swaarm-sdk": "^1.4.0",
+"@swaarm/swaarm-sdk": "^2.0.0",
 "@react-native-async-storage/async-storage": "^1.19.1",
 "react-native-device-info": "^10.8.0",
 ```
