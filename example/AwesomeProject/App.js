@@ -9,6 +9,7 @@ import {useEffect} from "react";
 // entries — the SDK will gracefully skip them.
 // import AppSetID from "react-native-app-set-id";
 // import ReactNativeIdfaAaid from "react-native-idfa-aaid";
+// import AppleAdsAttribution from "react-native-apple-ads-attribution";
 
 export default function App() {
     useEffect(() => {
@@ -25,6 +26,10 @@ export default function App() {
             // nativeModules: {
             //     appSetId: AppSetID,
             //     idfaAaid: ReactNativeIdfaAaid,
+            //     // iOS only — wire this in if you run Apple Search Ads campaigns.
+            //     // Omit it entirely if you do not; the SDK then skips Apple Ads
+            //     // attribution and never contacts Apple's servers.
+            //     adServicesAttribution: AppleAdsAttribution,
             // },
         });
     }, []);

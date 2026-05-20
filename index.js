@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
     attributionData: "__SWAARM_ATTRIBUTION_DATA",
     eventQueue: "__SWAARM_EVENT_QUEUE",
     clockSkew: "__SWAARM_CLOCK_SKEW_MS",
+    appleAdsChecked: "__SWAARM_APPLE_ADS_CHECKED",
 }
 
 const DEFAULTS = {
@@ -27,6 +28,9 @@ const DEFAULTS = {
     attributionMaxBackoffMs: 60 * 60 * 1000,
     attributionBackoffExponent: 1.5,
     clockSkewPersistThresholdMs: 500,
+    appleAdsEndpoint: "https://api-adservices.apple.com/api/v1/",
+    appleAdsMaxRetries: 3,
+    appleAdsRetryDelayMs: 5000,
 }
 
 // Calls made before `init()` completes land here and are replayed into the
@@ -223,8 +227,12 @@ class SwaarmClient {
                     await client._checkForDeferredDeepLinks()
                 }
                 let installReferrer = null
-                try { installReferrer = await getInstallReferrer() } catch (e) {
-                    SwaarmClient._warn("Install referrer", e)
+                if (Platform.OS === "ios") {
+                    installReferrer = await client._fetchAppleAdsInstallReferrer()
+                } else {
+                    try { installReferrer = await getInstallReferrer() } catch (e) {
+                        SwaarmClient._warn("Install referrer", e)
+                    }
                 }
                 client._enqueueEvent({installReferrer})
                 await AsyncStorage.setItem(STORAGE_KEYS.firstRun, "false")
@@ -728,6 +736,146 @@ class SwaarmClient {
         } catch (e) {
             SwaarmClient._warn("Attribution persist failed", e)
         }
+    }
+
+    // =========================================================================
+    // Apple Search Ads attribution (iOS only)
+    // =========================================================================
+
+    /**
+     * Fetches Apple Search Ads attribution data on first launch (iOS only).
+     *
+     * Companies that do not use Apple Search Ads can simply omit the optional
+     * `nativeModules.adServicesAttribution` reference — this method then
+     * silently returns null and never touches Apple's servers.
+     *
+     * Two native-module shapes are supported:
+     *   1. `{ getAttributionToken(): Promise<string> }` (preferred — matches
+     *      Apple's `AAAttribution.attributionToken()`). The SDK then exchanges
+     *      the token with `https://api-adservices.apple.com/api/v1/`.
+     *   2. `{ getAttributionData(): Promise<object> }` for packages that
+     *      already perform the Apple API exchange themselves and return the
+     *      parsed response.
+     *
+     * On a successful attribution, returns an InstallReferrer-shaped object
+     * with a UTM-formatted `referrer` and unix-seconds `clickTimestamp`.
+     */
+    async _fetchAppleAdsInstallReferrer() {
+        if (Platform.OS !== "ios") return null
+
+        try {
+            const checked = await AsyncStorage.getItem(STORAGE_KEYS.appleAdsChecked)
+            if (checked) return null
+        } catch (_) {}
+
+        const mod = this._nativeModules.adServicesAttribution || null
+
+        try { await AsyncStorage.setItem(STORAGE_KEYS.appleAdsChecked, "true") } catch (_) {}
+
+        if (!mod) {
+            if (SwaarmClient._debug) {
+                console.log("SwaarmSDK >> Apple Ads: no adServicesAttribution module supplied, skipping")
+            }
+            return null
+        }
+
+        let response = null
+        try {
+            if (typeof mod.getAttributionToken === "function") {
+                const token = await mod.getAttributionToken()
+                if (token && typeof token === "string") {
+                    response = await this._postAppleAdsToken(token)
+                }
+            } else if (typeof mod.attributionToken === "function") {
+                const token = await mod.attributionToken()
+                if (token && typeof token === "string") {
+                    response = await this._postAppleAdsToken(token)
+                }
+            } else if (typeof mod.getAttributionData === "function") {
+                response = await mod.getAttributionData()
+            } else {
+                SwaarmClient._warn("Apple Ads: adServicesAttribution module has no recognised method")
+                return null
+            }
+        } catch (e) {
+            SwaarmClient._warn("Apple Ads attribution failed", e)
+            return null
+        }
+
+        if (!response || response.attribution !== true) {
+            if (SwaarmClient._debug) {
+                console.log("SwaarmSDK >> Apple Ads: install not attributed to a campaign")
+            }
+            return null
+        }
+
+        const referrer = SwaarmClient._buildAppleAdsUtm(response)
+        const clickTimestamp = SwaarmClient._parseAppleAdsClickDate(response.clickDate)
+        if (SwaarmClient._debug) {
+            console.log(`SwaarmSDK >> Apple Ads attributed install: ${referrer}`)
+        }
+        return clickTimestamp != null ? {referrer, clickTimestamp} : {referrer}
+    }
+
+    async _postAppleAdsToken(token) {
+        const endpoint = DEFAULTS.appleAdsEndpoint
+        const maxRetries = DEFAULTS.appleAdsMaxRetries
+        const retryDelayMs = DEFAULTS.appleAdsRetryDelayMs
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            let response
+            try {
+                response = await fetch(endpoint, {
+                    method: "POST",
+                    body: token,
+                    headers: {"content-type": "text/plain"},
+                })
+            } catch (e) {
+                SwaarmClient._warn(`Apple Ads: request failed (attempt ${attempt})`, e)
+                if (attempt < maxRetries) {
+                    await new Promise(r => setTimeout(r, retryDelayMs))
+                }
+                continue
+            }
+
+            // Apple's endpoint returns 404 for ~10s after install — retry.
+            if (response.status === 404 && attempt < maxRetries) {
+                if (SwaarmClient._debug) {
+                    console.log(`SwaarmSDK >> Apple Ads: 404 (attempt ${attempt}), retrying in ${retryDelayMs}ms`)
+                }
+                await new Promise(r => setTimeout(r, retryDelayMs))
+                continue
+            }
+
+            if (!response.ok) {
+                SwaarmClient._warn(`Apple Ads: HTTP ${response.status}`)
+                return null
+            }
+
+            try {
+                return await response.json()
+            } catch (e) {
+                SwaarmClient._warn("Apple Ads: failed to parse response", e)
+                return null
+            }
+        }
+        return null
+    }
+
+    static _buildAppleAdsUtm(response) {
+        const parts = ["utm_source=appleads"]
+        if (response.campaignId != null) parts.push(`utm_campaign=${response.campaignId}`)
+        if (response.adGroupId != null) parts.push(`utm_adgroup=${response.adGroupId}`)
+        if (response.adId != null) parts.push(`utm_adid=${response.adId}`)
+        if (response.keywordId != null) parts.push(`utm_keyword=${response.keywordId}`)
+        return parts.join("&")
+    }
+
+    static _parseAppleAdsClickDate(raw) {
+        if (!raw || typeof raw !== "string") return null
+        const ms = Date.parse(raw)
+        if (!Number.isFinite(ms)) return null
+        return Math.floor(ms / 1000)
     }
 
     // =========================================================================

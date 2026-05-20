@@ -78,6 +78,24 @@ export interface SwaarmNativeModules {
      * it, `advertisingId` is `null`.
      */
     idfaAaid?: unknown;
+    /**
+     * Optional reference to a native module that surfaces the Apple Search Ads
+     * AdServices attribution token (iOS 14.3+). Supply this on iOS if you run
+     * Apple Search Ads campaigns and want install attribution forwarded to
+     * Swaarm; omit it otherwise. Two shapes are supported:
+     *
+     *   1. `{ getAttributionToken(): Promise<string> }` — matches Apple's
+     *      `AAAttribution.attributionToken()`. The SDK exchanges the token
+     *      with Apple's API itself.
+     *   2. `{ getAttributionData(): Promise<object> }` — for packages that
+     *      already perform the Apple API exchange and return the parsed
+     *      response (must include `attribution`, optionally `campaignId`,
+     *      `adGroupId`, `adId`, `keywordId`, `clickDate`).
+     *
+     * The attribution check runs at most once per install (gated by an
+     * AsyncStorage flag) on iOS only.
+     */
+    adServicesAttribution?: unknown;
 }
 
 export interface SwaarmInitOptions {

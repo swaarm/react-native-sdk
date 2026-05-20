@@ -40,6 +40,40 @@ npm install react-native-idfa-aaid
 
 Without this package, `advertisingId` is reported as `null` in every event.
 
+**Apple Search Ads attribution (iOS only, optional):**
+
+If you run Apple Search Ads campaigns and want install attribution forwarded to Swaarm, supply a
+native module that exposes the AdServices attribution token (iOS 14.3+). The token cannot be
+obtained from JavaScript directly — it requires a thin native bridge over Apple's
+`AAAttribution.attributionToken()` API.
+
+Two module shapes are supported:
+
+1. `{ getAttributionToken(): Promise<string> }` (preferred — the SDK then exchanges the token
+   with `https://api-adservices.apple.com/api/v1/` and parses the response).
+2. `{ getAttributionData(): Promise<object> }` for packages that already perform the API
+   exchange and return the parsed response object.
+
+Pass the module via `nativeModules.adServicesAttribution`:
+
+```javascript
+import AppleAdsAttribution from "react-native-apple-ads-attribution"; // or your own bridge
+
+SwaarmClient.init("example.swaarm.com", "<token>", {
+    nativeModules: {
+        adServicesAttribution: AppleAdsAttribution,
+    },
+});
+```
+
+The check runs at most once per install (gated by an `AsyncStorage` flag). On a successful
+attribution the install event carries `installReferrer.referrer` as a UTM string of the form
+`utm_source=appleads&utm_campaign=…&utm_adgroup=…&utm_adid=…&utm_keyword=…` plus a unix-seconds
+`clickTimestamp`. If the install was not attributed to a campaign, `installReferrer` is omitted.
+
+Companies that do not use Apple Search Ads can simply omit this module — the SDK skips the
+check entirely and never contacts Apple's servers.
+
 #### iOS: App Tracking Transparency
 
 On iOS 14.5+ you must request App Tracking Transparency permission from the user before the OS
@@ -139,8 +173,9 @@ SwaarmClient.log(true);
   app run with the deferred deep link route, if one was registered.
 - `maxQueueSize` (`number`, default `500`): maximum number of events kept in the local queue.
   When full, the oldest event is dropped.
-- `nativeModules` (`{ appSetId?, idfaAaid? }`, default `{}`): references to the optional
-  `react-native-app-set-id` and `react-native-idfa-aaid` modules (see above).
+- `nativeModules` (`{ appSetId?, idfaAaid?, adServicesAttribution? }`, default `{}`): references
+  to the optional `react-native-app-set-id`, `react-native-idfa-aaid`, and Apple Search Ads
+  attribution modules (see above).
 
 Example with all the optional identifier modules wired in:
 
