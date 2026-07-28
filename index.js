@@ -44,6 +44,7 @@ const PRE_INIT = {
 
 class SwaarmClient {
     static _instance = null
+    static _initPromise = null
     static _debug = false
 
     constructor() {
@@ -69,6 +70,7 @@ class SwaarmClient {
         this._appStateCurrent = "active"
         this._clockSkewMs = 0
         this._queuePersistPending = false
+        this._sending = false
     }
 
     // =========================================================================
@@ -84,10 +86,19 @@ class SwaarmClient {
      *     nativeModules: { appSetId, idfaAaid },
      *   })
      *
+     * Idempotent: concurrent or repeated calls share the first call's promise
+     * (later calls' arguments are ignored) until `stop()` is called.
+     *
      * @returns {Promise<SwaarmClient>}
      */
     static async init(domain, token, options = {}) {
-        return SwaarmClient._doInit(domain, token, options)
+        if (!SwaarmClient._initPromise) {
+            SwaarmClient._initPromise = SwaarmClient._doInit(domain, token, options).catch(e => {
+                SwaarmClient._initPromise = null
+                throw e
+            })
+        }
+        return SwaarmClient._initPromise
     }
 
     /**
@@ -158,6 +169,7 @@ class SwaarmClient {
 
     /** Stops the flush and attribution timers and detaches the AppState listener. */
     static stop() {
+        SwaarmClient._initPromise = null
         const client = SwaarmClient._instance
         if (!client) return
         client._active = false
@@ -223,6 +235,11 @@ class SwaarmClient {
             const isFirstRun = firstRunRaw === null
 
             if (isFirstRun) {
+                // Claim the first run before the referrer fetches below: they can
+                // take seconds, and any init() racing through that window would
+                // otherwise fire a second install event. Worst case on a crash we
+                // lose this install instead of duplicating it.
+                await AsyncStorage.setItem(STORAGE_KEYS.firstRun, "false")
                 if (client._deferredDeepLinkCallback) {
                     await client._checkForDeferredDeepLinks()
                 }
@@ -235,7 +252,6 @@ class SwaarmClient {
                     }
                 }
                 client._enqueueEvent({installReferrer})
-                await AsyncStorage.setItem(STORAGE_KEYS.firstRun, "false")
             }
 
             await client._loadAttributionData()
@@ -411,12 +427,16 @@ class SwaarmClient {
         }
     }
 
+    _persistQueue() {
+        return AsyncStorage.setItem(STORAGE_KEYS.eventQueue, JSON.stringify(this._events))
+    }
+
     _schedulePersistQueue() {
         if (this._queuePersistPending) return
         this._queuePersistPending = true
         setTimeout(() => {
             this._queuePersistPending = false
-            AsyncStorage.setItem(STORAGE_KEYS.eventQueue, JSON.stringify(this._events))
+            this._persistQueue()
                 .catch(e => SwaarmClient._warn("Failed to persist event queue", e))
         }, 0)
     }
@@ -493,39 +513,53 @@ class SwaarmClient {
     async _sendEvents() {
         if (!this._initialized) return
         if (!this._active) return
+        // The batch stays in the queue until the server acks it, so a second
+        // flush entering while one is in flight would re-send the same events.
+        if (this._sending) return
         if (this._events.length === 0) return
 
-        const batch = this._events.slice(0, DEFAULTS.batchSize)
-        const wireEvents = batch.map(e => this._freezeEventForWire(e))
-        const wireTime = new Date(Date.now() + this._clockSkewMs).toISOString()
-        const payload = JSON.stringify({time: wireTime, events: wireEvents})
-        const body = gzip(payload)
-
-        const requestStart = Date.now()
-        let response
+        this._sending = true
         try {
-            response = await fetch(this._buildUrl("/sdk"), {
-                method: "POST",
-                body,
-                headers: this._headers,
-            })
-        } catch (e) {
-            SwaarmClient._warn("Network error while sending events; will retry.", e)
-            return
-        }
+            const batch = this._events.slice(0, DEFAULTS.batchSize)
+            const wireEvents = batch.map(e => this._freezeEventForWire(e))
+            const wireTime = new Date(Date.now() + this._clockSkewMs).toISOString()
+            const payload = JSON.stringify({time: wireTime, events: wireEvents})
+            const body = gzip(payload)
 
-        this._updateClockSkewFromResponse(response, requestStart)
+            const requestStart = Date.now()
+            let response
+            try {
+                response = await fetch(this._buildUrl("/sdk"), {
+                    method: "POST",
+                    body,
+                    headers: this._headers,
+                })
+            } catch (e) {
+                SwaarmClient._warn("Network error while sending events; will retry.", e)
+                return
+            }
 
-        if (!response.ok) {
-            SwaarmClient._warn(`Server returned ${response.status} while sending events; will retry.`)
-            return
-        }
+            this._updateClockSkewFromResponse(response, requestStart)
 
-        const batchIds = new Set(batch.map(e => e.id))
-        this._events = this._events.filter(e => !batchIds.has(e.id))
-        this._schedulePersistQueue()
-        if (SwaarmClient._debug) {
-            console.log(`SwaarmSDK >> Sent ${batch.length} events; ${this._events.length} remain.`)
+            if (!response.ok) {
+                SwaarmClient._warn(`Server returned ${response.status} while sending events; will retry.`)
+                return
+            }
+
+            const batchIds = new Set(batch.map(e => e.id))
+            this._events = this._events.filter(e => !batchIds.has(e.id))
+            // Persist synchronously: if the app is killed before a deferred write
+            // lands, the pre-send queue would be restored and re-sent next launch.
+            try {
+                await this._persistQueue()
+            } catch (e) {
+                SwaarmClient._warn("Failed to persist event queue", e)
+            }
+            if (SwaarmClient._debug) {
+                console.log(`SwaarmSDK >> Sent ${batch.length} events; ${this._events.length} remain.`)
+            }
+        } finally {
+            this._sending = false
         }
     }
 
